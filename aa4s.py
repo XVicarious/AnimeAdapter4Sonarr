@@ -65,8 +65,11 @@ def fetch_anilist_show(anilist_id):
             }
         }
     """
-    vars = {"id": anilist_id}
-    request = requests.post(ANILIST_URL, headers=ANILIST_HEADER, json={"query": query_string, "variables": vars})
+    anilist_data = {"id": anilist_id}
+    request = requests.post(
+        ANILIST_URL,
+        headers=ANILIST_HEADER,
+        json={"query": query_string, "variables": anilist_data})
     json = {}
     try:
         json = request.json()
@@ -89,16 +92,15 @@ def fetch_anilist_seasons(anilist_id):
     for show in anime:
         relations = show['relations']
         for index, value in enumerate(relations['nodes']):
-            if relations['edges'][index]['relationType'] in ANILIST_RELATIONS and value['id'] not in get_ids_in_set(anime):
-                anime.append(fetch_anilist_show(value['id'])['data']['Media'])
+            if relations['edges'][index]['relationType'] in ANILIST_RELATIONS:
+                if value['id'] not in get_ids_in_set(anime):
+                    anime.append(fetch_anilist_show(value['id'])['data']['Media'])
     return anime
 
 def clean_anilist_seasons(anilist_seasons):
+    """Strip any unneeded data from what was fetched from anilist."""
     clean_seasons = []
     for title in anilist_seasons:
-        pp = pprint.PrettyPrinter(indent=2)
-        #pp.pprint(title)
-        #break
         start = title['startDate']
         end = title['endDate']
         clean_seasons.append({
@@ -111,13 +113,13 @@ def clean_anilist_seasons(anilist_seasons):
             "type": title['format'],
             "episodes": title['episodes']
         })
-    pp.pprint(clean_seasons)
-        
+    return clean_seasons
 
 def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
+    """Attempt to map episodes from tvdb to anilist."""
     return None
 
 #pp = pprint.PrettyPrinter(indent=2)
 #pp.pprint(fetch_tvdb_seasons(__tvdb_id)[2][12]['firstAired'])
 #print(fetch_anilist_seasons(__anilist_id))
-clean_anilist_seasons(fetch_anilist_seasons(__anilist_id))
+#clean_anilist_seasons(fetch_anilist_seasons(__anilist_id))
