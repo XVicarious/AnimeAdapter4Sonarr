@@ -5,6 +5,7 @@ Anime Adapter for Sonarr (aa4s)
 import tvdb_api
 from Pymoe import Anilist
 import requests
+import pprint
 
 TVDB_API = tvdb_api.Tvdb()
 ANILIST_API = Anilist()
@@ -22,7 +23,7 @@ ANILIST_RELATIONS = [
 ]
 
 # Testing variables
-__tvdb_id = 281251
+__tvdb_id = 81831
 __anilist_id = 5081
 
 def fetch_tvdb_seasons(tvdb_id):
@@ -38,6 +39,7 @@ def fetch_anilist_show(anilist_id):
         query($id: Int) {
             Media(id: $id, type: ANIME) {
                 id
+                format
                 title {
                     romaji
                 }
@@ -91,5 +93,31 @@ def fetch_anilist_seasons(anilist_id):
                 anime.append(fetch_anilist_show(value['id'])['data']['Media'])
     return anime
 
-# fetch_tvdb_seasons(281251)
-print(fetch_anilist_seasons(__anilist_id))
+def clean_anilist_seasons(anilist_seasons):
+    clean_seasons = []
+    for title in anilist_seasons:
+        pp = pprint.PrettyPrinter(indent=2)
+        #pp.pprint(title)
+        #break
+        start = title['startDate']
+        end = title['endDate']
+        clean_seasons.append({
+            "id": title['id'],
+            "title": title['title']['romaji'],
+            "dates": {
+                "start": "{}-{}-{}".format(start['year'], start['month'], start['day']),
+                "end": "{}-{}-{}".format(end['year'], end['month'], end['day'])
+            },
+            "type": title['format'],
+            "episodes": title['episodes']
+        })
+    pp.pprint(clean_seasons)
+        
+
+def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
+    return None
+
+#pp = pprint.PrettyPrinter(indent=2)
+#pp.pprint(fetch_tvdb_seasons(__tvdb_id)[2][12]['firstAired'])
+#print(fetch_anilist_seasons(__anilist_id))
+clean_anilist_seasons(fetch_anilist_seasons(__anilist_id))
