@@ -85,8 +85,9 @@ def fetch_anilist_seasons(anilist_id):
     anime = []
     anime.append(fetch_anilist_show(anilist_id)['data']['Media'])
     for show in anime:
-        for index, value in enumerate(show['relations']['nodes']):
-            if show['relations']['edges'][index]['relationType'] in ANILIST_RELATIONS and value['id'] not in get_ids_in_set(anime):
+        relations = show['relations']
+        for index, value in enumerate(relations['nodes']):
+            if relations['edges'][index]['relationType'] in ANILIST_RELATIONS and value['id'] not in get_ids_in_set(anime):
                 anime.append(fetch_anilist_show(value['id'])['data']['Media'])
     return anime
 
