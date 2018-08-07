@@ -3,12 +3,15 @@ Anime Adapter for Sonarr (aa4s)
 """
 
 import tvdb_api
-from Pymoe import Anilist
 import requests
 import pprint
+import datetime
 
 TVDB_API = tvdb_api.Tvdb()
-ANILIST_API = Anilist()
+ANILIST = {
+    'url': 'https://graphql.anilist.co',
+    'header': ''
+}
 ANILIST_URL = "https://graphql.anilist.co"
 ANILIST_HEADER = {
     "Content-Type": "application/json",
@@ -22,15 +25,31 @@ ANILIST_RELATIONS = [
     "SUMMARY"
 ]
 
+PP = pprint.PrettyPrinter(indent=2)
+
 # Testing variables
 __tvdb_id = 81831
-__anilist_id = 5081
+__anilist_id = 3455
+
+def clean_tvdb_seasons(tvdb_seasons):
+    """Clean up unneeded data on the seasons fetched from TVDB"""
+    clean_seasons = dict()
+    for index, season in tvdb_seasons.items(): 
+        clean_episodes = dict()
+        for episode_index, episode in season.items():
+            clean_episodes.update({episode_index: {
+                'episodeName': episode['episodeName'],
+                'airDate': episode['firstAired']
+            }})
+        clean_seasons.update({index: clean_episodes})
+    return clean_seasons
 
 def fetch_tvdb_seasons(tvdb_id):
     """Return all seasons of the given show."""
     seasons = dict()
     for key in TVDB_API[tvdb_id].keys():
         seasons.update({key: TVDB_API[tvdb_id][key]})
+    print("{} has {} seasons".format(tvdb_id, len(seasons)))
     return seasons
 
 def fetch_anilist_show(anilist_id):
@@ -85,18 +104,6 @@ def get_ids_in_set(set_var):
         ids.append(element['id'])
     return ids
 
-def fetch_anilist_seasons(anilist_id):
-    """Return all anime related to the given anime."""
-    anime = []
-    anime.append(fetch_anilist_show(anilist_id)['data']['Media'])
-    for show in anime:
-        relations = show['relations']
-        for index, value in enumerate(relations['nodes']):
-            if relations['edges'][index]['relationType'] in ANILIST_RELATIONS:
-                if value['id'] not in get_ids_in_set(anime):
-                    anime.append(fetch_anilist_show(value['id'])['data']['Media'])
-    return anime
-
 def clean_anilist_seasons(anilist_seasons):
     """Strip any unneeded data from what was fetched from anilist."""
     clean_seasons = []
@@ -115,11 +122,57 @@ def clean_anilist_seasons(anilist_seasons):
         })
     return clean_seasons
 
+def fetch_anilist_seasons(anilist_id):
+    """Return all anime related to the given anime."""
+    anime = []
+    anime.append(fetch_anilist_show(anilist_id)['data']['Media'])
+    for show in anime:
+        relations = show['relations']
+        for index, value in enumerate(relations['nodes']):
+            if relations['edges'][index]['relationType'] in ANILIST_RELATIONS:
+                if value['id'] not in get_ids_in_set(anime):
+                    anime.append(fetch_anilist_show(value['id'])['data']['Media'])
+    return clean_anilist_seasons(anime)
+
 def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
     """Attempt to map episodes from tvdb to anilist."""
-    return None
+    mapped_episodes = dict()
+    temp_tvdb = tvdb_seasons
+    for season in anilist_seasons:
+        mapped_episodes.update({
+            season['id']: {
+                'type': season['type'],
+                'episodes': dict.fromkeys(list(range(1, season['episodes'])), [])
+            }
+        })
+        ani = {}
+        ani['start'] = datetime.datetime.strptime(season['dates']['start'], "%Y-%m-%d")
+        ani['end'] = datetime.datetime.strptime(season['dates']['end'], "%Y-%m-%d")
+        for map_index, map_episode in enumerate(mapped_episodes[season['id']]['episodes']):
+            solved = False
+            for index, tvdb_season in tvdb_seasons.items():
+                for episode_index, tvdb_episode in tvdb_season.items():
+                    tvdb_date = datetime.datetime.strptime(tvdb_episode['airDate'], "%Y-%m-%d")
+                    if tvdb_date >= ani['start'] and tvdb_date <= ani['end']:
+                        print("Map Season: {}, Map Episode: {}, TVDB Season: {}, TVDB Episode: {}".format(
+                            season['id'], map_episode, index, episode_index
+                        ))
+                        mapped_episodes[season['id']]['episodes'][map_episode].append([index, episode_index])
+                    if solved:
+                        break
+                if solved:
+                    break
+    return mapped_episodes
 
-#pp = pprint.PrettyPrinter(indent=2)
-#pp.pprint(fetch_tvdb_seasons(__tvdb_id)[2][12]['firstAired'])
-#print(fetch_anilist_seasons(__anilist_id))
-#clean_anilist_seasons(fetch_anilist_seasons(__anilist_id))
+def map_anilist_show_to_tvdb_season(anilist_season, tvdb_seasons):
+    """Attempt to map a show from anilist to tvdb seasons and episodes"""
+    for episode in anilist_season:
+        return None
+
+
+PP.pprint(map_tvdb_to_anilist(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)), fetch_anilist_seasons(__anilist_id)))
+# PP.pprint(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)))
+# pp.pprint(fetch_tvdb_seasons(__tvdb_id))
+# PP.pprint(fetch_anilist_seasons(__anilist_id))
+# clean_anilist_seasons(fetch_anilist_seasons(__anilist_id))
+
