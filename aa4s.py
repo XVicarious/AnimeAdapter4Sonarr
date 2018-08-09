@@ -134,34 +134,58 @@ def fetch_anilist_seasons(anilist_id):
                     anime.append(fetch_anilist_show(value['id'])['data']['Media'])
     return clean_anilist_seasons(anime)
 
+def dates_within_n_days(date1, date2, n):
+    if abs((date1 - date2).days) < n + 1:
+        return True
+    return False
+
 def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
     """Attempt to map episodes from tvdb to anilist."""
     mapped_episodes = dict()
     temp_tvdb = tvdb_seasons
+    # Loop through each of the "seasons" (really shows) on anilist
     for season in anilist_seasons:
+        # Initialize the season with type and entries for each episode
         mapped_episodes.update({
             season['id']: {
                 'type': season['type'],
                 'episodes': dict.fromkeys(list(range(1, season['episodes'])), [])
             }
         })
+        # Get the start and dates in datetime format
         ani = {}
         ani['start'] = datetime.datetime.strptime(season['dates']['start'], "%Y-%m-%d")
         ani['end'] = datetime.datetime.strptime(season['dates']['end'], "%Y-%m-%d")
+        # Loop through each episode in the anilist season
         for map_index, map_episode in enumerate(mapped_episodes[season['id']]['episodes']):
+            # If we solved an episode, we should set this to true to not waste time going through the rest
             solved = False
+            # Each TVDB season, anime specials and OVAs are all in season 0 regardless of what season they're associated with
             for index, tvdb_season in tvdb_seasons.items():
+                # Each episode in the season
                 for episode_index, tvdb_episode in tvdb_season.items():
+                    # TVDB gives us nice information about when the episodes aired, unlike Anilist...
                     tvdb_date = datetime.datetime.strptime(tvdb_episode['airDate'], "%Y-%m-%d")
-                    if tvdb_date >= ani['start'] and tvdb_date <= ani['end']:
-                        print("Map Season: {}, Map Episode: {}, TVDB Season: {}, TVDB Episode: {}".format(
-                            season['id'], map_episode, index, episode_index
-                        ))
+                    # If the episode is within a day of the start or end date or within the season range
+                    if dates_within_n_days(tvdb_date, ani['start'], 1) or dates_within_n_days(tvdb_date, ani['end'], 1) or tvdb_date >= ani['start'] and tvdb_date <= ani['end']:
+                        #print("Map Season: {}, Map Episode: {}, TVDB Season: {}, TVDB Episode: {}".format(
+                        #    season['id'], map_episode, index, episode_index
+                        #))
+                        # Testing the first two conditions again, because I'm bad
+                        if dates_within_n_days(tvdb_date, ani['start'], 1) or dates_within_n_days(tvdb_date, ani['end'], 1):
+                            datey = ani['start']
+                            if dates_within_n_days(tvdb_date, ani['end'], 1):
+                                datey = ani['end']
+                            print("Season {} Episode {} aired on {} and is equal to {}".format(
+                                index, episode_index, tvdb_date, datey
+                            ))
+                            print("PERFECT MATCH: Anilist {}-{} maps to TVDB {}-{}".format(season['id'], map_episode, index, episode_index))
                         mapped_episodes[season['id']]['episodes'][map_episode].append([index, episode_index])
                     if solved:
                         break
                 if solved:
                     break
+        break
     return mapped_episodes
 
 def map_anilist_show_to_tvdb_season(anilist_season, tvdb_seasons):
@@ -169,10 +193,11 @@ def map_anilist_show_to_tvdb_season(anilist_season, tvdb_seasons):
     for episode in anilist_season:
         return None
 
-
-PP.pprint(map_tvdb_to_anilist(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)), fetch_anilist_seasons(__anilist_id)))
+#PP.pprint(
+map_tvdb_to_anilist(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)), fetch_anilist_seasons(__anilist_id))
+#)
 # PP.pprint(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)))
-# pp.pprint(fetch_tvdb_seasons(__tvdb_id))
+## PP.pprint(fetch_tvdb_seasons(__tvdb_id))
+# PP.pprint(fetch_anilist_show(__anilist_id))
 # PP.pprint(fetch_anilist_seasons(__anilist_id))
 # clean_anilist_seasons(fetch_anilist_seasons(__anilist_id))
-
