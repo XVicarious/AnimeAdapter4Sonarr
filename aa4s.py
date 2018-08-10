@@ -2,10 +2,17 @@
 Anime Adapter for Sonarr (aa4s)
 """
 
+import datetime
+import pprint
+import logging
 import tvdb_api
 import requests
-import pprint
-import datetime
+
+from kitsu import Kitsu
+# from kitsu import MapId
+# from kitsu import AnimeId
+
+logging.basicConfig(level=logging.DEBUG)
 
 TVDB_API = tvdb_api.Tvdb()
 ANILIST = {
@@ -25,11 +32,17 @@ ANILIST_RELATIONS = [
     "SUMMARY"
 ]
 
+KITSU = Kitsu("dd031b32d2f56c990b1425efe6c42ad847e7fe3ab46bf1299f05ecd856bdb7dd", "54d7307928f63414defd96399fc31ba847961ceaecef3a5fd93144e960c0e151")
+
 PP = pprint.PrettyPrinter(indent=2)
 
 # Testing variables
 __tvdb_id = 81831
 __anilist_id = 3455
+__anidb_id = 5625
+
+def fetch_kitsu_seasons(kitsu_id):
+    return
 
 def clean_tvdb_seasons(tvdb_seasons):
     """Clean up unneeded data on the seasons fetched from TVDB"""
@@ -193,8 +206,15 @@ def map_anilist_show_to_tvdb_season(anilist_season, tvdb_seasons):
     for episode in anilist_season:
         return None
 
+PP.pprint(
+    KITSU.get_anime_episodes(
+        KITSU.get_item_from_map(
+            KITSU.get_from_kitsu_map(KITSU.Mapping.TVDB_SERIES, __tvdb_id)[0]
+        )['id']
+    )
+)
 #PP.pprint(
-map_tvdb_to_anilist(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)), fetch_anilist_seasons(__anilist_id))
+#map_tvdb_to_anilist(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)), fetch_anilist_seasons(__anilist_id))
 #)
 # PP.pprint(clean_tvdb_seasons(fetch_tvdb_seasons(__tvdb_id)))
 ## PP.pprint(fetch_tvdb_seasons(__tvdb_id))
