@@ -23,24 +23,45 @@ class Kitsu:
     """
 
     KITSU_PATH = "https://kitsu.io/api"
+
     API_PATH = KITSU_PATH + "/edge"
     OAUTH_PATH = KITSU_PATH + "/oauth"
 
     MAPPING_PATH = API_PATH + "/mappings"
     ANIME_PATH = API_PATH + "/anime"
+    RELATIONSHIP_PATH = API_PATH + "/media-relationships"
 
     def __init__(self, client_id, client_secret):
         self.client_id = client_id
         self.client_secret = client_secret
 
+    class Role(Enum):
+        """ Roles for kitsu media relationships """
+        ADAPTATION = 0
+        ALTERNATIVE_SETTING = 1
+        ALTERNATIVE_VERSION = 2
+        CHARACTER = 3
+        FULL_STORY = 4
+        OTHER = 5
+        PARENT_STORY = 6
+        PREQUEL = 7
+        SEQUEL = 8
+        SIDE_STORY = 9
+        SPINOFF = 10
+        SUMMARY = 11
+        def __get__(self, instance, owner):
+            return self.name.lower()
+
     class SubType(Enum):
         """ Different show types for Kitsu. """
-        ONA,
-        OVA,
-        TV,
-        movie,
-        music,
-        special
+        ONA = 0
+        OVA = 0
+        TV = 0
+        movie = 0
+        music = 0
+        special = 0
+        def __get__(self, instance, owner):
+            return self.name.lower()
 
     class Mapping(Enum):
         """ The different types of mappings that Kitsu has,
@@ -52,6 +73,8 @@ class Kitsu:
         TVDB = "thetvdb"
         TVDB_SEASON = "thetvdb/season"
         TVDB_SERIES = "thetvdb/series"
+        def __get__(self, instance, owner):
+            return self.value
 
     def get_from_kitsu_map(self,
                            map_type: Type[Mapping],
@@ -60,7 +83,7 @@ class Kitsu:
         mapping_url = (self.MAPPING_PATH +
                        "?filter[externalSite]={}&filter[externalId]={}"
                        .format(
-                           map_type.value, map_id
+                           map_type, map_id
                        ))
         json = requests.get(mapping_url).json()
         mappings = []
@@ -68,6 +91,11 @@ class Kitsu:
             if entry['id'] is not None:
                 mappings.append(MapId(entry['id']))
         return mappings
+
+    def get_media(self, anime_id):
+        """ Get a media item based on the given id """
+        anime_url = self.ANIME_PATH + "/{}".format(anime_id)
+        return requests.get(anime_url).json()['data']
 
     def get_map_by_id(self, map_id: MapId):
         """ Gets a specific map based on a MapId. """
@@ -90,3 +118,38 @@ class Kitsu:
             anime_id
         )
         return requests.get(episodes_url).json()['data']
+
+    def get_media_relationships(self, media_id, roles=[]):
+        """ Get all relationships of the given media, filter by roles if desired """
+        relationship_url = self.RELATIONSHIP_PATH + "?filter[sourceId]={}&filter[role]={}".format(
+            media_id, ",".join(roles)
+        )
+        return requests.get(relationship_url).json()['data']
+
+    def get_item_by_relationship(self, relationship_id):
+        relationship_url = self.RELATIONSHIP_PATH + "/{}".format(relationship_id)
+        relation_item_id = requests.get(relationship_url).json()['data']['data']['id']
+        return self.get_media(relation_item_id)
+
+    def get_anime_relationships(self, anime_id: AnimeId, roles=[]):
+        """ Get all relationships of the given anime, filter by roles if desired """
+        return self.get_media_relationships(anime_id, roles=roles)
+
+    def get_anime_relationship_ids(self, anime_id, roles=[]):
+        raw_anime_relationships = self.get_anime_relationships(anime_id, roles=roles)
+        id_relations = []
+        for relation in raw_anime_relationships:
+            if relation is not None:
+                id_relations.append(
+                    requests.get(relation['relationships']['destination']['links']['self']).json()['data']['id']
+                )
+        return id_relations
+
+    def get_anime_relationships_nice(self, anime_id, roles=[]):
+        raw_anime_relationships = self.get_anime_relationships(anime_id, roles=roles)
+        nice_relations = []
+        for relation in raw_anime_relationships:
+            if relation is not None:
+                rel = requests.get(relation['relationships']['destination']['links']['self']).json()['data']['id']
+                nice_relations.append(self.get_media(rel))
+        return nice_relations
