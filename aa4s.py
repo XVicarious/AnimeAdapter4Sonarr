@@ -90,7 +90,7 @@ def fetch_tvdb_seasons(tvdb_id):
     for key in TVDB_API[tvdb_id].keys():
         seasons.update({key: TVDB_API[tvdb_id][key]})
     print("{} has {} seasons".format(tvdb_id, len(seasons)))
-    return seasons
+    return clean_tvdb_seasons(seasons)
 
 def fetch_anilist_show(anilist_id):
     """Return the given anime, and ids of all related anime."""
@@ -179,8 +179,26 @@ def dates_within_n_days(date1, date2, n):
         return True
     return False
 
-def map_tvdb_to_kitsu(tvdb_seasons, anilist_seasons):
-    return
+def map_tvdb_to_kitsu(tvdb_seasons, kitsu_seasons):
+    mapped_episodes = dict()
+    for season in kitsu_seasons:
+        mapped_episodes.update({season['id']: []})
+        for episode in season['episodes']:
+            airdate = datetime.datetime.strptime("1970-1-1", "%Y-%m-%d")
+            try:
+                airdate = datetime.datetime.strptime(episode['attributes']['airdate'], "%Y-%m-%d")
+            except TypeError:
+                print("Kitsu episode {}-{} doesn't have an airdate. We'll try to compare the episode names instead.".format(season['id'], episode['attributes']['number']))
+            episode_name = episode['attributes']['canonicalTitle']
+            for season_index, tvdb_season in tvdb_seasons.items():
+                for episode_index, tvdb_episode in tvdb_season.items():
+                    if tvdb_episode['airDate'] is None:
+                        print("TVDB episode {}-{} doesn't have an airdate".format(season_index, episode_index))
+                        continue
+                    tvdb_date = datetime.datetime.strptime(tvdb_episode['airDate'], "%Y-%m-%d")
+                    if dates_within_n_days(airdate, tvdb_date, 1) or episode_name == tvdb_episode['episodeName']:
+                        mapped_episodes[season['id']].append([[season_index, episode_index], episode['attributes']['number']])
+    return mapped_episodes
 
 def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
     """Attempt to map episodes from tvdb to anilist."""
@@ -231,9 +249,7 @@ def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
         break
     return mapped_episodes
 
-def map_anilist_show_to_tvdb_season(anilist_season, tvdb_seasons):
-    """Attempt to map a show from anilist to tvdb seasons and episodes"""
-    for episode in anilist_season:
-        return None
-
-PP.pprint(fetch_kitsu_seasons(__kitsu_id))
+PP.pprint(map_tvdb_to_kitsu(
+    fetch_tvdb_seasons(__tvdb_id),
+    fetch_kitsu_seasons(__kitsu_id)
+))
