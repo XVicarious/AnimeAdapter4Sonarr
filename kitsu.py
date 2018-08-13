@@ -117,7 +117,26 @@ class Kitsu:
         episodes_url = self.ANIME_PATH + "/{}/episodes".format(
             anime_id
         )
-        return requests.get(episodes_url).json()['data']
+        json = requests.get(episodes_url).json()
+        episodes = json['data']
+        current_link = json['links']['first']
+        try:
+            next_link = json['links']['next']
+            last_link = json['links']['last']
+        except KeyError:
+            return episodes
+        while True:
+            # set.union(otherset)
+            json = requests.get(next_link).json()
+            episodes += json['data']
+            current_link = next_link
+            if current_link == last_link:
+                break
+            try:
+                next_link = json['links']['next']
+            except KeyError:
+                next_link = last_link
+        return episodes
 
     def get_media_relationships(self, media_id, roles=[]):
         """ Get all relationships of the given media, filter by roles if desired """

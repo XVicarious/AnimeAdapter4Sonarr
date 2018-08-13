@@ -7,6 +7,9 @@ import pprint
 import logging
 import tvdb_api
 import requests
+import pickle
+from slugify import slugify
+from difflib import SequenceMatcher
 
 from kitsu import Kitsu
 # from kitsu import MapId
@@ -89,7 +92,7 @@ def fetch_tvdb_seasons(tvdb_id):
     seasons = dict()
     for key in TVDB_API[tvdb_id].keys():
         seasons.update({key: TVDB_API[tvdb_id][key]})
-    print("{} has {} seasons".format(tvdb_id, len(seasons)))
+    # print("{} has {} seasons".format(tvdb_id, len(seasons)))
     return clean_tvdb_seasons(seasons)
 
 def fetch_anilist_show(anilist_id):
@@ -179,25 +182,84 @@ def dates_within_n_days(date1, date2, n):
         return True
     return False
 
-def map_tvdb_to_kitsu(tvdb_seasons, kitsu_seasons):
-    mapped_episodes = dict()
+def map_tvdb_to_kitsu(tvdb_seasons, kitsu_seasons, current_map):
+    mapped_episodes = dict() if current_map is None else current_map
+    def __is_mapped(season, episode):
+        for i, mapped in mapped_episodes.items():
+            for m in mapped:
+                if [season, episode] in m:
+                    return True
+        return False
+    def __is_kitsu_mapped(kitsu_id, episode):
+        return episode in mapped_episodes[kitsu_id]
     for season in kitsu_seasons:
-        mapped_episodes.update({season['id']: []})
+        if season['id'] not in mapped_episodes.keys():
+            mapped_episodes.update({season['id']: []})
+        kitsu_id = season['id']
         for episode in season['episodes']:
+            kitsu_episode = episode['attributes']['number']
+            print("--------------------{}/{}--------------------".format(kitsu_id, kitsu_episode))
+            if __is_kitsu_mapped(kitsu_id, kitsu_episode):
+                continue
+            solved = False
+            kitsu_episode = episode['attributes']['number']
+            # print("{}-{}".format(kitsu_id, kitsu_episode), episode['attributes']['seasonNumber'])
             airdate = datetime.datetime.strptime("1970-1-1", "%Y-%m-%d")
             try:
                 airdate = datetime.datetime.strptime(episode['attributes']['airdate'], "%Y-%m-%d")
             except TypeError:
-                print("Kitsu episode {}-{} doesn't have an airdate. We'll try to compare the episode names instead.".format(season['id'], episode['attributes']['number']))
-            episode_name = episode['attributes']['canonicalTitle']
+                " "
+                # print("Kitsu episode {}-{} doesn't have an airdate. We'll try to compare the episode names instead.".format(season['id'], episode['attributes']['number']))
+            episode_name = ""
+            episode_names = []
+            try:
+                episode_name = slugify(episode['attributes']['canonicalTitle'])
+                episode_names = [slugify(x.strip()) for x in episode['attributes']['canonicalTitle'].split("/")]
+            except:
+                " " 
+                # print("no episode name")
             for season_index, tvdb_season in tvdb_seasons.items():
                 for episode_index, tvdb_episode in tvdb_season.items():
-                    if tvdb_episode['airDate'] is None:
-                        print("TVDB episode {}-{} doesn't have an airdate".format(season_index, episode_index))
+                    if __is_mapped(season_index, episode_index):
                         continue
-                    tvdb_date = datetime.datetime.strptime(tvdb_episode['airDate'], "%Y-%m-%d")
-                    if dates_within_n_days(airdate, tvdb_date, 1) or episode_name == tvdb_episode['episodeName']:
+                    tvdb_airdate = datetime.datetime.strptime("1970-1-1", "%Y-%m-%d")
+                    try:
+                        tvdb_airdate = datetime.datetime.strptime(tvdb_episode['airDate'], "%Y-%m-%d")
+                    except:
+                        " "
+                    tvdb_name = slugify(tvdb_episode['episodeName'])
+                    tvdb_names = [slugify(x.strip()) for x in tvdb_episode['episodeName'].split("/")]
+                    ratio = SequenceMatcher(None, episode_name, tvdb_name).ratio()
+                    ratios = []
+                    big_index = len(episode_names) if len(episode_names) < len(tvdb_names) else len(tvdb_names)
+                    o = 0
+                    while o < big_index:
+                        ratios.append(str(SequenceMatcher(None, episode_names[o], tvdb_names[o]).ratio()) + "," + episode_names[o] + "," + tvdb_names[o])
+                        o += 1
+                    average = 0.0
+                    if len(ratios) > 1:
+                        for ro in ratios:
+                            average += float(ro.split(",")[0])
+                    try:
+                        average = average / len(ratios)
+                    except:
+                        average = 0
+                    if dates_within_n_days(airdate, tvdb_airdate, 1) or episode_name == tvdb_name:
+                        print("PASS ({}): {} == {}".format(ratio, episode_name, tvdb_name))
                         mapped_episodes[season['id']].append([[season_index, episode_index], episode['attributes']['number']])
+                        solved = True
+                        break
+                    else:
+                        # print("Matching failed. Details here:")
+                        if ratio >= 0:
+                            print("FAIL ({}): {} != {}".format(ratio, episode_name, tvdb_name))
+                            if len(ratios) > 1:
+                                print("EXTRA: AVG {}".format(average))
+                                print("EXTRA: {}".format(ratios))
+                        # print("K-{}-{}: {} aired on {}".format(kitsu_id, kitsu_episode, episode_name, airdate))
+                        # print("T-{}-{}: {} aired on {}".format(season_index, episode_index, slugify(tvdb_episode['episodeName']), tvdb_date))
+                if solved:
+                    break
     return mapped_episodes
 
 def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
@@ -249,7 +311,17 @@ def map_tvdb_to_anilist(tvdb_seasons, anilist_seasons):
         break
     return mapped_episodes
 
-PP.pprint(map_tvdb_to_kitsu(
+#__tvdb_id = 102261
+#__kitsu_id = KITSU.get_from_kitsu_map(KITSU.Mapping.TVDB_SERIES, __tvdb_id)[0]
+the_map = None
+try:
+    the_map = pickle.load(open(str(__tvdb_id) + ".pkl", 'rb'))
+except:
+    print("Map not found for id, starting over")
+the_map = map_tvdb_to_kitsu(
     fetch_tvdb_seasons(__tvdb_id),
-    fetch_kitsu_seasons(__kitsu_id)
-))
+    fetch_kitsu_seasons(__kitsu_id),
+    the_map
+)
+pickle.dump(the_map, open(str(__tvdb_id) + ".pkl", 'wb'))
+
